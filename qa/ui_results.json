@@ -1,0 +1,107 @@
+{
+  "results": [
+    {
+      "id": "UI-01 page loads",
+      "status": "PASS",
+      "detail": "title='AI Software Development Agent'"
+    },
+    {
+      "id": "UI-02 header",
+      "status": "PASS",
+      "detail": "\ud83e\udd16 AI Software Development Agent"
+    },
+    {
+      "id": "UI-03 status idle",
+      "status": "PASS",
+      "detail": "status='idle'"
+    },
+    {
+      "id": "UI-04 timeline stages",
+      "status": "PASS",
+      "detail": "n=10 first=\u25cb\nPlanning last=\u25cb\nPullRequest"
+    },
+    {
+      "id": "UI-05 reco loads",
+      "status": "PASS",
+      "detail": "use-buttons=16 preview='bitflicker64/Termstory\\nother\\n#124 [Medium] predict.py: duplicate noise-filter lo'"
+    },
+    {
+      "id": "UI-06 tab switch",
+      "status": "PASS",
+      "detail": "hint='Search open issues by keyword'"
+    },
+    {
+      "id": "UI-12 issue search",
+      "status": "PASS",
+      "detail": "rows=25"
+    },
+    {
+      "id": "UI-06b tab back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "UI-07 repo search",
+      "status": "PASS",
+      "detail": "rows=12"
+    },
+    {
+      "id": "UI-08 select repo loads issues",
+      "status": "PASS",
+      "detail": "issue-items=1"
+    },
+    {
+      "id": "UI-10 start disabled w/o issue",
+      "status": "PASS",
+      "detail": "disabled=True"
+    },
+    {
+      "id": "UI-09 select issue enables start",
+      "status": "PASS",
+      "detail": "start_enabled=True selbar=True"
+    },
+    {
+      "id": "UI-11 checkbox defaults",
+      "status": "PASS",
+      "detail": "runTests=True openPr=True upstreamPr=False"
+    },
+    {
+      "id": "RES-01 narrow viewport",
+      "status": "PASS",
+      "detail": "scrollW=382 innerW=390 overflow=-8px"
+    },
+    {
+      "id": "RUN-01 start run",
+      "status": "PASS",
+      "detail": "status='running \u00b7 397a27e2ae7e' sel='fastapi/fastapi #10370 \u2014 \ud83d\ude80 Roadmap'"
+    },
+    {
+      "id": "RUN-02 timeline activates",
+      "status": "PASS",
+      "detail": "active/done stages=1"
+    },
+    {
+      "id": "RUN-03 checkpoint modal",
+      "status": "PASS",
+      "detail": "title='Checkpoint \u00b7 plan' body=\"1. Implement Pydantic v2 for request body parsing\\n   Update internal mechanisms to leverage Pydantic v2's parsing capabi\""
+    },
+    {
+      "id": "RUN-04 reject resolves",
+      "status": "PASS",
+      "detail": "status='finished: rejected' startReEnabled=True"
+    },
+    {
+      "id": "RUN-05 no PR side effect",
+      "status": "PASS",
+      "detail": "Open PR unchecked + rejected before PR stage"
+    },
+    {
+      "id": "UI-CONSOLE",
+      "status": "NOTE",
+      "detail": "1 console errors: ['Failed to load resource: the server responded with a status of 404 (Not Found)']"
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

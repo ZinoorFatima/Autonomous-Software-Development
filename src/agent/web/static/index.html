@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Software Development Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+    .label { background:#1e293b; color:#94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+  <div class="max-w-7xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-white">🤖 AI Software Development Agent</h1>
+        <p class="text-slate-400 text-sm">Search a repo, pick an issue, watch the agents open a PR.</p>
+      </div>
+      <div id="status" class="text-sm px-3 py-1 rounded-full bg-slate-800 text-slate-400">idle</div>
+    </header>
+
+    <!-- Discovery: search (left) + recommendations (right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <!-- Search + selection -->
+      <section class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <button id="tabRepos" class="px-3 py-1 rounded text-xs font-medium bg-indigo-600 text-white">Repositories</button>
+          <button id="tabIssues" class="px-3 py-1 rounded text-xs font-medium bg-slate-800 text-slate-300">Issues</button>
+          <span id="searchHint" class="text-xs text-slate-500 ml-1">Search GitHub for a repo</span>
+        </div>
+        <div class="relative">
+          <input id="repoSearch" autocomplete="off"
+                 placeholder="e.g. 'fastapi', 'octocat/Hello-World', or 'yourname/'"
+                 class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+          <div id="repoResults" class="absolute z-20 left-0 right-0 mt-1 bg-slate-950 border border-slate-700 rounded shadow-xl max-h-72 overflow-y-auto hidden"></div>
+        </div>
+
+        <!-- Selected repo + its issues -->
+        <div id="repoPanel" class="hidden mt-4">
+          <div id="repoChip" class="text-sm text-slate-300 mb-2"></div>
+          <div class="text-xs text-slate-400 mb-1">Open issues — pick one:</div>
+          <div id="issueList" class="space-y-1 max-h-64 overflow-y-auto"></div>
+        </div>
+
+        <!-- Selection + options + start -->
+        <div id="selectionBar" class="hidden mt-4 border-t border-slate-800 pt-4">
+          <div class="text-sm mb-3">Selected: <span id="selText" class="text-indigo-300 font-semibold"></span></div>
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="flex items-center gap-2 text-sm"><input id="runTests" type="checkbox" checked class="accent-indigo-500"/> Run tests</label>
+            <label class="flex items-center gap-2 text-sm"><input id="openPr" type="checkbox" checked class="accent-indigo-500"/> Open PR</label>
+            <label class="flex items-center gap-2 text-sm" title="In fork mode, also open the PR on the upstream repo">
+              <input id="upstreamPr" type="checkbox" class="accent-indigo-500"/> Upstream PR</label>
+            <button id="startBtn" disabled
+                    class="ml-auto bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-semibold rounded px-5 py-2 text-sm">
+              Start run
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recommendations -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide">⭐ Recommended for you</h2>
+        <p id="recoLangs" class="text-xs text-slate-500 mt-1 mb-2">Based on your repositories…</p>
+        <div id="recoFilters" class="flex flex-wrap gap-1 mb-3"></div>
+        <div id="recoList" class="space-y-2 max-h-80 overflow-y-auto text-sm text-slate-400">loading…</div>
+      </section>
+    </div>
+
+    <!-- Run view -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wide">Agent timeline</h2>
+        <ul id="timeline" class="space-y-1 text-sm"></ul>
+      </section>
+      <section class="lg:col-span-2 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <h2 class="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wide">Live log</h2>
+          <div id="log" class="mono text-xs space-y-1 h-72 overflow-y-auto"></div>
+        </div>
+        <div id="diffWrap" class="bg-slate-900 border border-slate-800 rounded-xl p-4 hidden">
+          <h2 class="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wide">Diff</h2>
+          <pre id="diff" class="mono text-xs h-72 overflow-y-auto whitespace-pre"></pre>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Checkpoint modal -->
+  <div id="modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6">
+      <h3 id="modalTitle" class="text-lg font-bold text-white mb-2">Checkpoint</h3>
+      <p id="modalMsg" class="text-slate-400 text-sm mb-4"></p>
+      <div id="modalBody" class="mono text-xs bg-slate-950 border border-slate-800 rounded p-3 max-h-72 overflow-y-auto mb-4 whitespace-pre-wrap"></div>
+      <div class="flex justify-end gap-3">
+        <button id="rejectBtn" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm">Reject</button>
+        <button id="approveBtn" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm">Approve</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const PIPELINE = ["Planning","RepoAnalysis","Architect","Backend","Frontend","Testing","Debug","Review","Security","PullRequest"];
+const ICON = { agent_started:"⏳", agent_finished:"✅", stage:"▶️", issue:"📌", tool_call:"🔧",
+  fork:"🍴", plan:"📋", test_result:"🧪", warning:"⚠️", commit:"💾", pull_request:"🔀", error:"❌", checkpoint:"⏸️", log:"·" };
+const state = { repo:null, issue:null, title:null };
+let runId = null, ws = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => (s||"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; };
+
+function labelChips(labels) {
+  return (labels||[]).map(l => `<span class="label text-[10px] px-1.5 py-0.5 rounded mr-1">${esc(l)}</span>`).join("");
+}
+
+// ---------- Search (repos | issues) ----------
+let searchMode = "repos";
+const box = () => $("repoResults");
+
+function setMode(mode) {
+  searchMode = mode;
+  $("tabRepos").className = "px-3 py-1 rounded text-xs font-medium " + (mode==="repos"?"bg-indigo-600 text-white":"bg-slate-800 text-slate-300");
+  $("tabIssues").className = "px-3 py-1 rounded text-xs font-medium " + (mode==="issues"?"bg-indigo-600 text-white":"bg-slate-800 text-slate-300");
+  $("searchHint").textContent = mode==="repos" ? "Search GitHub for a repo" : "Search open issues by keyword";
+  $("repoSearch").placeholder = mode==="repos"
+    ? "e.g. 'fastapi', 'octocat/Hello-World', or 'yourname/'"
+    : "keywords across open issues — e.g. 'fix typo docs', 'add type hints'";
+  box().classList.add("hidden");
+}
+$("tabRepos").onclick = () => setMode("repos");
+$("tabIssues").onclick = () => setMode("issues");
+
+const doSearch = debounce(async (q) => {
+  if (q.trim().length < 2) { box().classList.add("hidden"); return; }
+  box().innerHTML = `<div class="p-3 text-slate-500 text-sm">searching…</div>`; box().classList.remove("hidden");
+  try {
+    if (searchMode === "repos") {
+      const { repos } = await (await fetch(`/api/search/repos?q=${encodeURIComponent(q)}`)).json();
+      if (!repos || !repos.length) { box().innerHTML = `<div class="p-3 text-slate-500 text-sm">No matches</div>`; return; }
+      box().innerHTML = repos.map(rp => `
+        <div class="srch-item px-3 py-2 hover:bg-slate-800 cursor-pointer border-b border-slate-800" data-repo="${esc(rp.full_name)}">
+          <div class="flex justify-between"><span class="text-slate-200">${esc(rp.full_name)}</span>
+            <span class="text-xs text-slate-500">★ ${rp.stars} · ${esc(rp.language||"—")} · ${rp.open_issues} issues</span></div>
+          <div class="text-xs text-slate-500">${esc(rp.description)}</div>
+        </div>`).join("");
+      box().querySelectorAll(".srch-item").forEach(el => el.onclick = () => selectRepo(el.dataset.repo));
+    } else {
+      const r = await fetch(`/api/search/issues?q=${encodeURIComponent(q)}`);
+      if (!r.ok) { box().innerHTML = `<div class="p-3 text-amber-400 text-sm">${esc((await r.json()).detail||"failed")}</div>`; return; }
+      const { issues } = await r.json();
+      if (!issues || !issues.length) { box().innerHTML = `<div class="p-3 text-slate-500 text-sm">No matching issues</div>`; return; }
+      box().innerHTML = issues.map(i => `
+        <div class="srch-item px-3 py-2 hover:bg-slate-800 cursor-pointer border-b border-slate-800" data-repo="${esc(i.repo)}" data-num="${i.number}" data-title="${esc(i.title)}">
+          <div class="text-slate-200 text-sm">${esc(i.repo)} <span class="text-slate-500">#${i.number}</span></div>
+          <div class="text-slate-300 text-xs">${esc(i.title)}</div>
+          <div class="mt-1">${labelChips(i.labels)}</div>
+        </div>`).join("");
+      box().querySelectorAll(".srch-item").forEach(el => el.onclick = () => useReco(el.dataset.repo, parseInt(el.dataset.num,10), el.dataset.title));
+    }
+  } catch (e) { box().innerHTML = `<div class="p-3 text-red-400 text-sm">search failed</div>`; }
+}, 380);
+
+$("repoSearch").addEventListener("input", (e) => doSearch(e.target.value));
+document.addEventListener("click", (e) => { if (!box().contains(e.target) && e.target !== $("repoSearch")) box().classList.add("hidden"); });
+
+async function selectRepo(full) {
+  state.repo = full; state.issue = null; state.title = null;
+  $("repoResults").classList.add("hidden");
+  $("repoSearch").value = full;
+  $("repoChip").innerHTML = `📦 <span class="text-slate-200 font-semibold">${esc(full)}</span>`;
+  $("repoPanel").classList.remove("hidden");
+  $("issueList").innerHTML = `<div class="text-slate-500 text-sm">loading issues…</div>`;
+  updateSelection();
+  try {
+    const r = await fetch(`/api/repos/${full}/issues`);
+    if (!r.ok) { $("issueList").innerHTML = `<div class="text-amber-400 text-sm">${esc((await r.json()).detail||"failed")}</div>`; return; }
+    const { issues } = await r.json();
+    if (!issues.length) { $("issueList").innerHTML = `<div class="text-slate-500 text-sm">No open issues.</div>`; return; }
+    $("issueList").innerHTML = issues.map(i => `
+      <div class="issue-item px-3 py-2 rounded border border-slate-800 hover:border-indigo-500 cursor-pointer" data-num="${i.number}" data-title="${esc(i.title)}">
+        <div class="text-slate-200">#${i.number} · ${esc(i.title)}</div>
+        <div class="mt-1">${labelChips(i.labels)}</div>
+      </div>`).join("");
+    $("issueList").querySelectorAll(".issue-item").forEach(el =>
+      el.onclick = () => selectIssue(parseInt(el.dataset.num,10), el.dataset.title, el));
+  } catch (e) { $("issueList").innerHTML = `<div class="text-red-400 text-sm">${esc(String(e))}</div>`; }
+}
+
+function selectIssue(num, title, el) {
+  state.issue = num; state.title = title;
+  document.querySelectorAll(".issue-item").forEach(x => x.classList.remove("border-indigo-500","bg-slate-800"));
+  if (el) el.classList.add("border-indigo-500","bg-slate-800");
+  updateSelection();
+}
+
+function updateSelection() {
+  const ready = state.repo && state.issue;
+  $("selectionBar").classList.toggle("hidden", !state.repo);
+  $("selText").textContent = ready ? `${state.repo} #${state.issue} — ${state.title||""}` :
+    (state.repo ? `${state.repo} (pick an issue)` : "");
+  $("startBtn").disabled = !ready;
+}
+
+// ---------- Recommendations (with category filters) ----------
+let allRecos = [], recoFilter = "all";
+const CAT_LABEL = { all:"All", docs:"Docs", bug:"Bugs", test:"Tests", feature:"Features", other:"Other" };
+const sizeStr = (kb) => (typeof kb==='number') ? (kb<1000 ? `${kb}KB` : `${(kb/1000).toFixed(1)}MB`) : '';
+
+async function loadReco() {
+  try {
+    const r = await fetch("/api/recommendations");
+    if (!r.ok) { $("recoList").innerHTML = `<div class="text-amber-400">${esc((await r.json()).detail||"unavailable")}</div>`; return; }
+    const { languages, issues } = await r.json();
+    $("recoLangs").textContent = languages && languages.length ? `Based on your top languages: ${languages.join(", ")}` : "Based on your repositories";
+    allRecos = issues || [];
+    renderFilters(); renderRecos();
+  } catch (e) { $("recoList").innerHTML = `<div class="text-red-400">${esc(String(e))}</div>`; }
+}
+
+function renderFilters() {
+  const present = ["docs","bug","test","feature","other"].filter(c => allRecos.some(i => i.category===c));
+  const cats = ["all", ...present];
+  $("recoFilters").innerHTML = cats.map(c => {
+    const n = c==="all" ? allRecos.length : allRecos.filter(i=>i.category===c).length;
+    const on = c===recoFilter;
+    return `<button class="reco-filter px-2 py-0.5 rounded text-xs ${on?'bg-indigo-600 text-white':'bg-slate-800 text-slate-300'}" data-cat="${c}">${CAT_LABEL[c]} ${n}</button>`;
+  }).join("");
+  $("recoFilters").querySelectorAll(".reco-filter").forEach(b => b.onclick = () => { recoFilter = b.dataset.cat; renderFilters(); renderRecos(); });
+}
+
+function renderRecos() {
+  const items = recoFilter==="all" ? allRecos : allRecos.filter(i=>i.category===recoFilter);
+  if (!items.length) { $("recoList").innerHTML = `<div class="text-slate-500">No suggestions here.</div>`; return; }
+  $("recoList").innerHTML = items.map(i => {
+    const ci = i.has_ci ? `<span class="text-emerald-400">✓ CI</span>` : `<span class="text-slate-600">no CI</span>`;
+    const sz = sizeStr(i.repo_size); const szStr = sz ? ` · ${sz}` : '';
+    return `
+    <div class="p-2 rounded border border-slate-800 hover:border-indigo-500">
+      <div class="flex justify-between items-center text-xs">
+        <span class="text-slate-300">${esc(i.repo)}</span>
+        <span class="label px-1.5 py-0.5 rounded text-[10px]">${esc(i.category)}</span></div>
+      <div class="text-slate-200 text-sm">#${i.number} ${esc(i.title)}</div>
+      <div class="text-[11px] text-slate-500 mt-0.5">🟢 ${esc(i.reason||"")} · ${ci}${szStr}</div>
+      <div class="mt-1 flex items-center justify-between">
+        <div>${labelChips(i.labels)}</div>
+        <button class="reco-use text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded px-2 py-1"
+                data-repo="${esc(i.repo)}" data-num="${i.number}" data-title="${esc(i.title)}">Use</button>
+      </div>
+    </div>`;
+  }).join("");
+  $("recoList").querySelectorAll(".reco-use").forEach(b => b.onclick = () => useReco(b.dataset.repo, parseInt(b.dataset.num,10), b.dataset.title));
+}
+
+function useReco(repo, num, title) {
+  state.repo = repo; state.issue = num; state.title = title;
+  $("repoSearch").value = repo;
+  $("repoChip").innerHTML = `📦 <span class="text-slate-200 font-semibold">${esc(repo)}</span>`;
+  $("repoPanel").classList.remove("hidden");
+  $("issueList").innerHTML = `<div class="issue-item px-3 py-2 rounded border border-indigo-500 bg-slate-800"><div class="text-slate-200">#${num} · ${esc(title)}</div></div>`;
+  updateSelection();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ---------- Run + live events (unchanged core) ----------
+const timeline = $("timeline"), logEl = $("log");
+function resetTimeline() {
+  timeline.innerHTML = "";
+  PIPELINE.forEach(name => {
+    const li = document.createElement("li");
+    li.id = "tl-" + name;
+    li.className = "flex items-center gap-2 text-slate-500";
+    li.innerHTML = `<span class="state">○</span> <span>${name}</span>`;
+    timeline.appendChild(li);
+  });
+}
+function setAgent(name, st) {
+  const li = $("tl-" + name); if (!li) return;
+  const dot = li.querySelector(".state");
+  if (st === "active") { li.className = "flex items-center gap-2 text-indigo-300 font-semibold"; dot.textContent = "◉"; }
+  else if (st === "done") { li.className = "flex items-center gap-2 text-emerald-400"; dot.textContent = "●"; }
+}
+function addLog(ev) {
+  const row = document.createElement("div");
+  const icon = ICON[ev.type] || "·";
+  const who = ev.agent ? `<span class="text-cyan-400">[${esc(ev.agent)}]</span> ` : "";
+  row.className = ev.type === "error" ? "text-red-400" : ev.type === "warning" ? "text-amber-400" : "text-slate-300";
+  row.innerHTML = `${icon} ${who}<span>${esc(ev.message || ev.type)}</span>`;
+  logEl.appendChild(row); logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(text, cls) { const el = $("status"); el.textContent = text; el.className = "text-sm px-3 py-1 rounded-full " + (cls || "bg-slate-800 text-slate-400"); }
+function showDiff(text) {
+  if (!text) return;
+  $("diffWrap").classList.remove("hidden");
+  const pre = $("diff"); pre.innerHTML = "";
+  text.split("\n").forEach(line => {
+    const span = document.createElement("div"); span.textContent = line;
+    if (line.startsWith("+") && !line.startsWith("+++")) span.className = "text-emerald-400";
+    else if (line.startsWith("-") && !line.startsWith("---")) span.className = "text-red-400";
+    else if (line.startsWith("@@")) span.className = "text-cyan-400";
+    else span.className = "text-slate-400";
+    pre.appendChild(span);
+  });
+}
+function openCheckpoint(ev) {
+  const stage = ev.data.stage;
+  $("modalTitle").textContent = "Checkpoint · " + stage;
+  $("modalMsg").textContent = ev.message || "";
+  let body = "";
+  if (stage === "plan" && ev.data.tasks) body = ev.data.tasks.map((t,i)=>`${i+1}. ${t.title}\n   ${t.description}`).join("\n\n");
+  else if (stage === "commit") { body = "Changed files:\n" + (ev.data.changed_files||[]).join("\n") + "\n\n" + (ev.data.diff||""); showDiff(ev.data.diff); }
+  else if (stage === "pr") body = "TITLE: " + ev.data.title + "\n\n" + ev.data.body;
+  else body = JSON.stringify(ev.data, null, 2);
+  $("modalBody").textContent = body;
+  $("modal").classList.remove("hidden"); $("modal").classList.add("flex");
+}
+function closeCheckpoint() { $("modal").classList.add("hidden"); $("modal").classList.remove("flex"); }
+async function resolve(approved) { closeCheckpoint(); await fetch(`/runs/${runId}/${approved?"approve":"reject"}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" }); }
+$("approveBtn").onclick = () => resolve(true);
+$("rejectBtn").onclick = () => resolve(false);
+
+function handleEvent(ev) {
+  if (ev.type === "agent_started") setAgent(ev.agent, "active");
+  if (ev.type === "agent_finished") setAgent(ev.agent, "done");
+  if (ev.type === "checkpoint") openCheckpoint(ev);
+  if (ev.type === "pull_request") setStatus("PR opened", "bg-emerald-700 text-white");
+  if (ev.type === "run_finished") {
+    const st = ev.data.status;
+    const map = { success:"bg-emerald-700 text-white", rejected:"bg-amber-700 text-white", error:"bg-red-700 text-white" };
+    setStatus("finished: " + st, map[st] || "bg-slate-700");
+    if (ev.data.pr_url) { const row = document.createElement("div"); row.innerHTML = `🔗 <a class="text-indigo-400 underline" href="${ev.data.pr_url}" target="_blank">${ev.data.pr_url}</a>`; logEl.appendChild(row); }
+    $("startBtn").disabled = false;
+  }
+  addLog(ev);
+}
+
+$("startBtn").onclick = async () => {
+  if (!state.repo || !state.issue) return;
+  $("startBtn").disabled = true;
+  resetTimeline(); logEl.innerHTML = ""; $("diffWrap").classList.add("hidden");
+  setStatus("starting…", "bg-indigo-700 text-white");
+  try {
+    const res = await fetch("/runs", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ repo: state.repo, issue: state.issue,
+        run_tests: $("runTests").checked, open_pr: $("openPr").checked, upstream_pr: $("upstreamPr").checked }) });
+    if (!res.ok) { const err = await res.json(); setStatus("error", "bg-red-700 text-white"); addLog({ type:"error", message: err.detail || "failed to start" }); $("startBtn").disabled = false; return; }
+    const { run_id } = await res.json();
+    runId = run_id;
+    setStatus("running · " + run_id, "bg-indigo-700 text-white");
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/runs/${runId}/stream`);
+    ws.onmessage = (m) => handleEvent(JSON.parse(m.data));
+  } catch (err) { setStatus("error", "bg-red-700 text-white"); addLog({ type:"error", message: String(err) }); $("startBtn").disabled = false; }
+};
+
+resetTimeline();
+loadReco();
+</script>
+</body>
+</html>
