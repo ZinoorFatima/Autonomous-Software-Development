@@ -179,3 +179,9 @@ GitHub, so it needs no network or keys.
 - **Docker sandbox** in place of the allowlisted local workspace.
 - Full **frontend / JS-TS** test runners (currently Python-first).
 - Persistent multi-run history (currently in-memory per run).
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
